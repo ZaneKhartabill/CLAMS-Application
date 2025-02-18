@@ -5,9 +5,22 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Page setup
-st.set_page_config(page_title="CLAMS Data Analyzer", layout="wide")
-st.title("CLAMS Data Analyzer")
+# Page setup + title
+st.set_page_config(
+    page_title="CLAMSer",
+    page_icon="🧬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+# Add a simple logo + title combination
+col1, col2 = st.columns([0.1, 0.9])
+with col1:
+    st.markdown("🧬") # Simple DNA emoji as logo placeholder
+with col2:
+    st.title("CLAMSer: CLAMS Data Analyzer")
+    
+# Add title with basic styling
+st.title("🧬 CLAMSer: CLAMS Data Analyzer")
 
 # Constants
 PARAMETER_UNITS = {
