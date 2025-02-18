@@ -5,10 +5,29 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Page setup
-st.set_page_config(page_title="CLAMS Data Analyzer", layout="wide")
-st.title("CLAMS Data Analyzer")
+# Page setup + title
+st.set_page_config(
+    page_title="CLAMSer",
+    page_icon="🧬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+st.markdown("""
+    <style>
+    [data-testid="stHeader"] {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
+# Then adjust the columns ratio and remove any extra spacing
+st.title("CLAMSer: CLAMS Data Analyzer")
+st.image("assets/images/logo.svg", width=200)
+
+# Add a divider for clean separation
+st.markdown("---")
+    
 # Constants
 PARAMETER_UNITS = {
     "VO2": "ml/kg/hr",
