@@ -193,8 +193,21 @@ def process_clams_data(file, parameter_type):
 
         # Combine all data and process time window
         df_processed = pd.concat(all_data, ignore_index=True)
+        # Replaced old end_time start_time with this (days to analyze)
+        days_to_analyze = {
+            "Last 24 Hours": 1,
+            "Last 48 Hours": 2,
+            "Last 72 Hours": 3
+        }[time_window]
+
         end_time = df_processed['timestamp'].max()
-        start_time = end_time - pd.Timedelta(days=1)
+        start_time = end_time - pd.Timedelta(days=days_to_analyze)
+
+        # Add this check
+        total_hours = (df_processed['timestamp'].max() - df_processed['timestamp'].min()).total_seconds() / 3600
+        if total_hours < (days_to_analyze * 24):
+            st.error(f"Not enough data for {time_window} analysis. File contains approximately {total_hours:.1f} hours of data.")
+            return None, None, None
 
         df_24h = df_processed[
             (df_processed['timestamp'] >= start_time) &
@@ -392,6 +405,49 @@ def calculate_metabolic_results(df_24h):
     results['Total Average'] = (results['Dark Average'] + results['Light Average']) / 2
     return results
 
+def show_verification_calcs(df_24h, results, hourly_results, parameter):
+    """Show sample calculations for verification"""
+    with st.expander("🔍 View Sample Calculations (First Cage)"):
+        st.write("### Sample Calculations Verification")
+        
+        # Get first cage data
+        first_cage = df_24h['cage'].unique()[0]
+        first_cage_data = df_24h[df_24h['cage'] == first_cage].copy()
+        
+        # Show raw data sample
+        st.write("#### Raw Data Sample (First 5 rows)")
+        st.dataframe(first_cage_data[['timestamp', 'value', 'is_light']].head())
+        
+        # Calculate and show light/dark averages
+        dark_data = first_cage_data[~first_cage_data['is_light']]['value']
+        light_data = first_cage_data[first_cage_data['is_light']]['value']
+        
+        st.write("#### Light/Dark Averages Calculation")
+        st.write(f"Dark Average = Sum of dark values ({dark_data.sum():.2f}) ÷ Number of dark readings ({len(dark_data)}) = {dark_data.mean():.2f}")
+        st.write(f"Light Average = Sum of light values ({light_data.sum():.2f}) ÷ Number of light readings ({len(light_data)}) = {light_data.mean():.2f}")
+        
+        # Show a sample hourly calculation
+        st.write("#### Sample Hourly Average Calculation (Hour 0)")
+        hour_0_data = first_cage_data[first_cage_data['hour'] == 0]['value']
+        if not hour_0_data.empty:
+            st.write(f"Hour 0 Average = Sum of values ({hour_0_data.sum():.2f}) ÷ Number of readings ({len(hour_0_data)}) = {hour_0_data.mean():.2f}")
+        
+        # Compare with results - handle different parameter types
+        st.write("#### Verification Against Results")
+        st.write(f"Values in results table:")
+        
+        if parameter in ["XTOT", "XAMB"]:
+            st.write(f"- Dark Activity: {results.iloc[0]['False (Average Activity)']:.2f}")
+            st.write(f"- Light Activity: {results.iloc[0]['True (Average Activity)']:.2f}")
+        elif parameter == "FEED":
+            st.write(f"- Dark Rate: {results.iloc[0]['Average Rate (Dark)']:.2f}")
+            st.write(f"- Light Rate: {results.iloc[0]['Average Rate (Light)']:.2f}")
+        else:  # VO2, VCO2, RER, HEAT
+            st.write(f"- Dark Average: {results.iloc[0]['Dark Average']:.2f}")
+            st.write(f"- Light Average: {results.iloc[0]['Light Average']:.2f}")
+        
+        st.write(f"- Hour 0 Average: {hourly_results.iloc[0][0]:.2f}")
+        
 # Parameter selection with descriptions
 parameter_descriptions = {
     "VO2": "Oxygen consumption (ml/kg/hr)",
@@ -411,6 +467,12 @@ parameter = st.selectbox(
     format_func=lambda x: f"{x}: ~{parameter_descriptions[x]}"
 )
 
+# Add this time window selector
+time_window = st.radio(
+    "Select Analysis Time Window",
+    ["Last 24 Hours", "Last 48 Hours", "Last 72 Hours"],
+    help="Choose how much data to analyze from the end of the recording"
+)
 # File upload and processing section
 uploaded_file = st.file_uploader(f"Choose a {parameter} CSV file", type="csv")
 
@@ -670,16 +732,20 @@ if uploaded_file is not None:
                 st.subheader(f"{parameter} Hourly Analysis")
                 if hourly_results is not None:
                     st.dataframe(style_dataframe(hourly_results))
+                    
+                # Add verification calculations
+                if results is not None and hourly_results is not None:
+                    show_verification_calcs(raw_data, results, hourly_results, parameter)
                 
                 # Add footer with analysis details
-                st.markdown("---")
                 st.markdown(f"""
-                **Analysis Details:**
-                - Analysis Period: {raw_data['timestamp'].min().strftime('%Y-%m-%d %H:%M')} to {raw_data['timestamp'].max().strftime('%Y-%m-%d %H:%M')}
-                - Light Cycle: 7:00 AM - 7:00 PM
-                - Dark Cycle: 7:00 PM - 7:00 AM
-                - Total Records Processed: {len(raw_data):,}
-                """)
+            **Analysis Details:**
+            - Time Window: {time_window}
+            - Analysis Period: {raw_data['timestamp'].min().strftime('%Y-%m-%d %H:%M')} to {raw_data['timestamp'].max().strftime('%Y-%m-%d %H:%M')}
+            - Light Cycle: 7:00 AM - 7:00 PM
+            - Dark Cycle: 7:00 PM - 7:00 AM
+            - Total Records Processed: {len(raw_data):,}
+            """)
 
 # Add an About section at the bottom
 with st.expander("ℹ️ About CLAMS Data Analyzer"):
