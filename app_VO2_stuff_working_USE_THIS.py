@@ -193,8 +193,21 @@ def process_clams_data(file, parameter_type):
 
         # Combine all data and process time window
         df_processed = pd.concat(all_data, ignore_index=True)
+        # Replaced old end_time start_time with this (days to analyze)
+        days_to_analyze = {
+            "Last 24 Hours": 1,
+            "Last 48 Hours": 2,
+            "Last 72 Hours": 3
+        }[time_window]
+
         end_time = df_processed['timestamp'].max()
-        start_time = end_time - pd.Timedelta(days=1)
+        start_time = end_time - pd.Timedelta(days=days_to_analyze)
+
+        # Add this check
+        total_hours = (df_processed['timestamp'].max() - df_processed['timestamp'].min()).total_seconds() / 3600
+        if total_hours < (days_to_analyze * 24):
+            st.error(f"Not enough data for {time_window} analysis. File contains approximately {total_hours:.1f} hours of data.")
+            return None, None, None
 
         df_24h = df_processed[
             (df_processed['timestamp'] >= start_time) &
@@ -454,6 +467,12 @@ parameter = st.selectbox(
     format_func=lambda x: f"{x}: ~{parameter_descriptions[x]}"
 )
 
+# Add this time window selector
+time_window = st.radio(
+    "Select Analysis Time Window",
+    ["Last 24 Hours", "Last 48 Hours", "Last 72 Hours"],
+    help="Choose how much data to analyze from the end of the recording"
+)
 # File upload and processing section
 uploaded_file = st.file_uploader(f"Choose a {parameter} CSV file", type="csv")
 
@@ -719,14 +738,14 @@ if uploaded_file is not None:
                     show_verification_calcs(raw_data, results, hourly_results, parameter)
                 
                 # Add footer with analysis details
-                st.markdown("---")
                 st.markdown(f"""
-                **Analysis Details:**
-                - Analysis Period: {raw_data['timestamp'].min().strftime('%Y-%m-%d %H:%M')} to {raw_data['timestamp'].max().strftime('%Y-%m-%d %H:%M')}
-                - Light Cycle: 7:00 AM - 7:00 PM
-                - Dark Cycle: 7:00 PM - 7:00 AM
-                - Total Records Processed: {len(raw_data):,}
-                """)
+            **Analysis Details:**
+            - Time Window: {time_window}
+            - Analysis Period: {raw_data['timestamp'].min().strftime('%Y-%m-%d %H:%M')} to {raw_data['timestamp'].max().strftime('%Y-%m-%d %H:%M')}
+            - Light Cycle: 7:00 AM - 7:00 PM
+            - Dark Cycle: 7:00 PM - 7:00 AM
+            - Total Records Processed: {len(raw_data):,}
+            """)
 
 # Add an About section at the bottom
 with st.expander("ℹ️ About CLAMS Data Analyzer"):
